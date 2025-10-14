@@ -100,3 +100,28 @@ RUN adduser -u 70 -S -D -G postgres -H -h /var/lib/postgresql -s /bin/sh postgre
 # Finalmente, especificamos a qual pasta iremos aplicar essas configurações. No caso, "/var/lib/
 # postgresql".
 RUN install --directory --owner postgres --group postgres --mode 1777 /var/lib/postgresql
+
+# Perceba que, até agora, rodamos todos os comandos anteriores com o usuário administrador do
+# sistema (conhecido como "root"). Entretanto, continuar rodando comandos com usuários com tantos
+# privilégios elevados abre uma brecha de segurança. Para contornar isso, vamos passar a rodar os
+# comandos passando-se pelo usuário "postgres", que acabamos de criar. Como já definimos quais
+# permissões esse usuário tem, teremos a garantia que não haverão possíveis brechas de segurança.
+#
+# A ferramenta recomendada pelo PostgreSQL para essa finalidade é chamada de "gosu". Ela existe
+# para executar comandos como outro usuário (no caso, o usuário "postgres") de forma segura. No
+# nosso caso, o gosu será usado para rodar o que o PostgreSQL chama de "script de inicialização"
+# (veremos mais sobre isso à frente).
+#
+# Lembra que nosso sistema operacional é o Linux Alpine, feito para ser o mais enxuto possível?
+# Pois bem, isso implica que uma quantidade pequena de ferramentas está instalada por padrão, e o
+# gosu não é uma delas. Logo, precisaremos instalá-la manualmente. Isso será uma boa atividade para
+# aprender como ferramentas são adicionadas ao Linux.
+#
+# DISCORRER SOBRE DEPENDÊNCIAS. ========================
+#
+# No Linux, quaisquer ferramentas, programas, softwares, etc. que você pode adicionar ao sistema
+# possuem um nome comum: "pacotes". A gigantesca maioria das distribuições do Linux (incluindo o
+# Alpine) possuem "gerenciadores de pacotes" (também conhecidos pelo termo inglês "packet manager")
+# que facilitam a instalação desses programas: basta digitar o nome do programa que ele já é
+# instalado automaticamente.
+RUN apk add --no-cache --virtual .gosu-deps ca-certificates dpkg gnupg
