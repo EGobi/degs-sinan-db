@@ -1,3 +1,4 @@
+# O Alpine tem 12,8 MB.
 FROM alpine:3.22
 
 # Um grupo no Linux é um conceito fundamental de segurança e gerenciamento de permissões. Ele
@@ -117,11 +118,57 @@ RUN install --directory --owner postgres --group postgres --mode 1777 /var/lib/p
 # gosu não é uma delas. Logo, precisaremos instalá-la manualmente. Isso será uma boa atividade para
 # aprender como ferramentas são adicionadas ao Linux.
 #
-# DISCORRER SOBRE DEPENDÊNCIAS. ========================
+# O link para baixar o gosu é o seguinte: <https://github.com/tianon/gosu/releases/tag/1.19>. Se
+# você acessar essa página, verá que existem diversos arquivos listados: "gosu-amd64",
+# "gosu-arm64", "gosu-armel", "gosu-armhf", "gosu-i386", e assim por diante. Na verdade, nós só
+# precisamos de um deles, pois esse texto após "gosu-" indica a arquitetura do nosso sistema.
+#
+# Quando falamos em "arquitetura de sistema", estamos nos referindo ao processador do nosso
+# computador (a CPU), e não ao sistema operacional. Tanto faz que estejamos rodando Windows 10,
+# Windows 11, macOS ou Ubuntu; para que possamos rodar o programa, precisamos baixar o arquivo com
+# a arquitetura equivalente à da nossa CPU.
+#
+# Hoje em dia, a arquitetura que predomina entre os computadores é a "amd64", porém não podemos
+# ficar supondo qual é a arquitetura do computador que rodará nosso banco de dados. Para determinar
+# com exatidão a arquitetura do nosso sistema, existe uma ferramenta chamada "dpkg".
+#
+# Eita! Percebeu em que pé estamos agora? Precisamos de um programa ("dpgk") para podermos instalar
+# outro programa ("gosu")! Quando isso acontece, dizemos que tal programa ("gosu") possui
+# dependências. Portanto, é correto dizer que, para a nossa finalidade, o "dpkg" é uma dependência
+# do "gosu".
+#
+# Percebeu também que estamos usando palavras diferentes para nos referirmos ao mesmo conceito? Nos
+# dos últimos parágramos, usamos as palavras "ferramenta" e "programa" para nos referirmos ao mesmo
+# conceito. É hora de estabelecermos um nome comum para isso, de forma a evitar equívocos.
 #
 # No Linux, quaisquer ferramentas, programas, softwares, etc. que você pode adicionar ao sistema
 # possuem um nome comum: "pacotes". A gigantesca maioria das distribuições do Linux (incluindo o
 # Alpine) possuem "gerenciadores de pacotes" (também conhecidos pelo termo inglês "packet manager")
 # que facilitam a instalação desses programas: basta digitar o nome do programa que ele já é
 # instalado automaticamente.
-RUN apk add --no-cache --virtual .gosu-deps ca-certificates dpkg gnupg
+#
+# O gerenciador de pacotes que vem com o Alpine Linux é chamado de APK (Alpine Package Keeper).
+# Para instalar um pacote, basta usar o comando "apk add <nome do pacote>". Poderíamos, portanto,
+# simplesmente rodar "apk add dpkg" para instalar o pacote "dpkg". Porém, precisamos considerar a
+# alternativa que melhor otimize o armazenamento do nosso sistema. Por padrão, o APK, além de
+# instalar um pacote, mantém todos os arquivos que foram baixados durante a instalação salvos no
+# computador, para que possam ser reutilizados em futuras instalações ou atualizações. Nós não
+# precisamos disso, pois o "dpkg" vai ser utilizado somente para permitir a instalação do "gosu".
+# Inclusive, assim que instalarmos o "gosu", poderemos desinstalar o "dpkg" para economizar espaço.
+# Para evitar que os arquivos de instalação permaneçam salvos no computador, basta acrescentar a
+# opção "--no-cache" ao comando, ficando assim: "apk add --no-cache <nome do pacote>". A vantagem
+# disso é justamente reduzir ao máximo o tamanho do nosso sistema.
+#
+# Existe ainda mais uma otimização a esse comando. Conforme veremos um pouco mais para frente, o
+# "dpkg" não é a única dependência do "gosu". Não seria bom se pudéssemos agrupar esses pacotes e
+# depois simplesmente apagá-los todos de uma só vez? É para isso que serve o conceito de "pacote
+# virtual".
+#
+# Um pacote virtual é um apelido temporário para um grupo de pacotes que você está instalando
+# juntos. Sua principal vantagem é poder removê-los todos de uma só vez depois que eles não forem
+# mais necessários. Isso é muito útil quando estamos instalando dependências temporárias (como é o
+# nosso caso). Por convenção, é comum que esse apelido comece com um "." quando queremos sinalizar
+# que aquele grupo de pacotes é temporário. Portanto, podemos chamar esse grupo de ".gosu-deps". A
+# opção "--virtual <apelido do grupo de pacotes>" e, quando juntamos ao comando completo, fica:
+RUN apk add --no-cache --virtual .gosu-deps dpkg
+# Sistema: 16,0 MB.
