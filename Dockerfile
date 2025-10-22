@@ -123,11 +123,6 @@ RUN install --directory --owner postgres --group postgres --mode 1777 /var/lib/p
 # "gosu-arm64", "gosu-armel", "gosu-armhf", "gosu-i386", e assim por diante. Na verdade, nós só
 # precisamos de um deles, pois esse texto após "gosu-" indica a arquitetura do nosso sistema.
 #
-# Quando falamos em "arquitetura de sistema", estamos nos referindo ao processador do nosso
-# computador (a CPU), e não ao sistema operacional. Tanto faz que estejamos rodando Windows 10,
-# Windows 11, macOS ou Ubuntu; para que possamos rodar o programa, precisamos baixar o arquivo com
-# a arquitetura equivalente à da nossa CPU.
-#
 # Hoje em dia, a arquitetura que predomina entre os computadores é a "amd64", porém não podemos
 # ficar supondo qual é a arquitetura do computador que rodará nosso banco de dados. Para determinar
 # com exatidão a arquitetura do nosso sistema, existe uma ferramenta chamada "dpkg".
@@ -172,3 +167,76 @@ RUN install --directory --owner postgres --group postgres --mode 1777 /var/lib/p
 # opção "--virtual <apelido do grupo de pacotes>" e, quando juntamos ao comando completo, fica:
 RUN apk add --no-cache --virtual .gosu-deps dpkg
 # Sistema: 16,0 MB.
+
+# Agora que instalamos o "dpkg", temos o comando homônimo à nossa disposição. Utilizaremos ele para
+# que nos retorne qual arquitetura está sendo usada pelo sistema operacional, através da opção
+# "--print-architecture". Esse comando retorna três informações: a implementação da biblioteca
+# padrão do C (linguagem base do sistema operacional), o sistema operacional e a arquitetura.
+#
+# No caso, quando executamos, o comando retorna "musl-linux-amd64". Musl é a implementação usada em
+# distribuições minimalistas do Linux, como o Alpine. Linux é o sistema operacional. AMD64 é a
+# arquitetura sendo usada.
+#
+# Ótimo! Já conseguimos saber qual arquitetura está sendo usada. Agora, precisamos isolar somente
+# a última parte, e isso faremos com uma nova ferramenta nativa do sistema operacional: o AWK.
+#
+# O AWK é uma ferramenta usada para processar e analisar texto. Através do seu parâmetro "-F",
+# conseguimos passar qual caractere será o delimitador da string. No nosso caso, o delimitador de
+# "musl-linux-amd64" é o hífen, então "-F-" faz com que esse texto seja separado em três campos:
+# "musl", "linux" e "amd64". Então, se quiséssemos retornar o primeiro campo ("musl"),
+# escreveríamos assim: "dpkg --print-architecture | awk -F- '{ print $1 }'". Se quiséssemos
+# retornar "linux", trocaríamos o "$1" por "$2" (por ser o 2º campo) e assim por diante.
+# Entretanto, é possível que o comando "dpkg --print-architecture" retorne um texto com 4 campos em
+# vez de 3 (como "custom-musl-linux-amd64"), portanto usar "$3" poderia trazer o sistema
+# operacional em vez da arquitetura.
+#
+# Para contornar isso, existe "$NF" (abreviação de Number of Fields), que sempre vai retornar a
+# quantidade de campos retornados pela delimitação. Como a arquitetura é sempre o último campo,
+# "$NF" sempre coincidirá com o número do último campo. Portanto, podemos salvar a arquitetura em
+# uma variável desta maneira:
+RUN set -eux; \
+    dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
+# Agora que temos nossa arquitetura, podemos usar a ferramenta "wget", que serve para baixar
+# arquivos da internet, para obter o arquivo correto. Vamos usar a opção "-O" para especificar onde
+# e com que nome ele será baixado. Como é um arquivo binário, a convenção é salvá-lo na pasta
+# "/usr/local/bin", com o nome "gosu". Vamos falar um pouco mais sobre essa pasta.
+#
+# O diretório "/bin" serve para armazenar os binários esseciais do sistema (como os comandos "ls",
+# "mv", etc.). Já o diretório "/usr/bin" é onde os programas baixados pelo gerenciador de pacotes
+# (como o "dpkg") ficam. Por fim, se o binário é adquirido fora do gerenciador de pacotes,
+# convenciona-se que ele fique em "/usr/local/bin". Isso é uma convenção de organização, para
+# facilitar saber o que foi instalado manualmente.
+    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/1.19/gosu-$dpkgArch"; \
+# Não somente precisamos baixar o binário como também devemos verificar sua autenticidade. Isso é
+# uma boa prática de segurança. Como lemos no manual do gosu, seu autor optou por gerar uma
+# assinatura digital.
+#
+# Uma assinatura digital é um mecanismo de criptografia que permite verificar a autenticidade de um
+# arquivo ou mensagem, garantir que ele não foi alterado desde sua assinatura e confirmar a
+# identidade de quem assinou.
+#
+# Existem diversas formas matemáticas de se obter uma assinatura digital, porém a mais difundida
+# hoje é através do algoritmo de Rivest-Shamir-Adleman (RSA), publicado em 1977, que se baseia em
+# um princípio matemático fundamental: É computacionalmente difícil fatorar um número muito grande
+# que seja o produto de dois primos grandes. Esse é o problema matemático central que garante a
+# segurança do RSA.
+# 
+# O RSA se baseia na criptografia de chave pública, também chamada de criptografia assimétrica:
+# usa um par de chaves, uma pública para criptografar e uma privada para descriptografar.
+#
+# A segurança depende da dificuldade de fatorar um número grande n = p * q, onde p e q são primos
+# grandes. É fácil multiplicar p * q, mas muito difícil descobrir p e q a partir de n.
+#
+# Para a geração de p e q, é escolhida uma fonte de entropia no sistema (como movimentos do mouse,
+# ruído do hardware, etc.). Entropia, em criptografia, representa o grau de aleatoriedade/
+# imprevisibilidade de um dado. O número gerado é da ordem de 1024 bits, ou aproximadamente
+# 308 casas decimais!
+#
+# Então, é aplicado um teste de primalidade para ver se aquele número é primo. Testes de
+# primalidade existem desde o século XVII, mas o principal usado hoje é o de Miller-Rabin, de 1980.
+# Isso é repetido para o segundo número.
+#
+# Por fim, verifica-se se p e q são números diferentes e distantes (comparando a diferença |p - q|
+# com um limite mínimo seguro). Então é obtida a função totiente de Euler (séc. XVIII) a partir de
+# n, em que φ(n) = (p - 1) * (q - 1)
+    wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/1.19/gosu-$dpkgArch.asc"
