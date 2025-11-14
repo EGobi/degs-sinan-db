@@ -1,3 +1,12 @@
 services:
   postgres:
-    image: postgres
+    image: postgres:18.1-alpine3.22
+    container_name: postgres
+    environment:
+      POSTGRES_USER: degs
+      POSTGRES_PASSWORD: gridescpes
+      POSTGRES_DB: sinan_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./dados_postgres:/var/lib/postgresql/data
